@@ -31,6 +31,7 @@ def MakeDashboard():
         params={"population_param": current_population, "condition_param": current_condition},
         ttl=300
     )
+
     full_data = connection.query(
         "SELECT * FROM immunePops NATURAL JOIN conditionDeets NATURAL JOIN sampleMetadata",
         params={"population_param": current_population, "condition_param": current_condition},
@@ -83,23 +84,42 @@ def MakeAnalysis():
 
 
 def MakeDataOverview():
-    connection = sqlite3.connect("cell-database.db")
-    connCur = connection.cursor()
+    connection = st.connection("cell_database", type="sql")
+    # connCur = connection.cursor()
 
-    connCur.execute("""
+    population_df = connection.query("SELECT DISTINCT sample FROM immunePops;", ttl=3600) # Our time to live parameter will be an hour so we don't trigger the rerun rule anytime we interact with the page
+    population_list = population_df["sample"].tolist()
+    current_population = st.sidebar.selectbox("Population Selection", options=population_list)
+
+    condition_df = connection.query("SELECT DISTINCT sample FROM conditionDeets;", ttl=3600)
+    condition_list = condition_df["sample"].tolist()
+    current_condition = st.sidebar.selectbox("Condition Selection", options=condition_list)
+
+    data_table = pd.read_sql_query("""
                     WITH allResponses AS(SELECT sample, sample_type, sample_count, sample_percentage, treatment, condition FROM statisticalAnalysis NATURAL JOIN conditionDeets NATURAL JOIN sampleMetadata WHERE treatment='miraclib' AND condition='melanoma' AND sample_type='PBMC'),
                     posiResponse AS(SELECT sample, sample_type, sample_count, sample_percentage FROM allResponses WHERE response='yes'),
                     negResponses AS(SELECT sample, sample_type, sample_count, sample_percentage FROM allResponses WHERE response='no')
                     SELECT * FROM allResponses;
-                    """) # This checks if the table this script is implementing already exists within our database
+                    """, connection) # This checks if the table this script is implementing already exists within our database
+
+    data_overview = connection.query(
+        data_table,
+        params={"population_param": current_population, "condition_param": current_condition},
+        ttl=300
+    )
+
+    if data_overview.empty:
+        st.warning("This filter combination does not exist!")
+    else:
+        st.dataframe(data_overview, use_container_width=True, hide_index=True)
 
     connection.commit()
     connection.close()
 
 def main():
-    MakeDataOverview()
     MakeAnalysis()
     MakeDashboard()
+    MakeDataOverview()
 
 if __name__ == "__main__":
     main()
