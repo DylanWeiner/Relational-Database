@@ -1,6 +1,8 @@
 import sqlite3
 import pandas as pd
 import streamlit as st
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -23,37 +25,47 @@ def MakeDashboard():
     condition_list = condition_df["sample"].tolist()
     current_condition = st.sidebar.selectbox("Condition Selection", options=condition_list)
 
-    main_query = """
-        SELECT * FROM statisticalAnalysis;
-    """
-    df = connection.query(
-        main_query,
+    df_data_overview = connection.query(
+        "SELECT * FROM initialAnalysis;",
         params={"population_param": current_population, "condition_param": current_condition},
         ttl=300
     )
 
-    full_data = connection.query(
+    df_stat_analysis = connection.query(
+        "SELECT * FROM statisticalAnalysis;",
+        params={"population_param": current_population, "condition_param": current_condition},
+        ttl=300
+    )
+
+    df_full_data = connection.query(
         "SELECT * FROM immunePops NATURAL JOIN conditionDeets NATURAL JOIN sampleMetadata",
         params={"population_param": current_population, "condition_param": current_condition},
         ttl=300
     )
 
-    if df.empty:
+    if df_data_overview.empty:
         st.warning("This filter combination does not exist!")
     else:
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        st.dataframe(full_data, use_container_width=True, hide_index=True)
+        st.header("Initial Analysis")
+        st.dataframe(df_data_overview, use_container_width=True, hide_index=True,)
+        st.dataframe(df_full_data, use_container_width=True, hide_index=True)
+    
+    if df_stat_analysis.empty:
+        st.warning("Statistical Analysis's filter combination does not exist!")
+    else:
+        st.header("Statistical Analysis")
+        st.dataframe(df_stat_analysis, use_container_width=True, hide_index=True,)
 
 
-def MakeAnalysis():
+def MakeInitAnalysis():
     connection = sqlite3.connect("cell-database.db")
     connCur = connection.cursor()
-    connCur.execute("SELECT name FROM sqlite_master WHERE type='table' and name=?", ('statisticalAnalysis',)) # This checks if the table this script is implementing already exists within our database
+    connCur.execute("SELECT name FROM sqlite_master WHERE type='table' and name=?", ('initialAnalysis',)) # This checks if the table this script is implementing already exists within our database
     if(connCur.fetchone()):
-        connCur.execute("DROP TABLE statisticalAnalysis") # Deletes table each time this app is run
+        connCur.execute("DROP TABLE initialAnalysis") # Deletes table each time this app is run
     
     connCur.execute("""
-        CREATE TABLE statisticalAnalysis (
+        CREATE TABLE initialAnalysis (
             sample VARCHAR,
             sample_type VARCHAR,
             sample_count INTEGER,
@@ -64,7 +76,7 @@ def MakeAnalysis():
     
     connCur.execute("""
         WITH sampleSum AS(SELECT sample, (b_cell+cd8_t_cell+cd4_t_cell+nk_cell+monocyte) AS total_count FROM immunePops GROUP BY sample)
-        INSERT INTO statisticalAnalysis(sample, sample_type, sample_count, sample_percentage)
+        INSERT INTO initialAnalysis(sample, sample_type, sample_count, sample_percentage)
         SELECT sample, 'b_cell', b_cell, ROUND(100.0 * b_cell/ total_count, 2) FROM immunePops NATURAL JOIN sampleSum
         UNION ALL
         SELECT sample, 'cd8_t_cell', cd8_t_cell, ROUND(100.0 * cd8_t_cell/ total_count, 2) FROM immunePops NATURAL JOIN sampleSum
@@ -77,49 +89,60 @@ def MakeAnalysis():
     """) # Inserts sample information for each type, percentage is a decimal to trigger floating point division, and rounded to the two nearest sig figs
         # Order By groups everything by sample name rather than sample type
 
-    summary_df = pd.read_sql_query("SELECT * FROM statisticalAnalysis;", connection) # We use read sql query since we get output
-    print(summary_df)
     connection.commit()
     connection.close()
 
 
-def MakeDataOverview():
-    connection = st.connection("cell_database", type="sql")
-    # connCur = connection.cursor()
+def MakeStatAnalysis():
+    connection = sqlite3.connect("cell-database.db")
+    connCur = connection.cursor()
+    connCur.execute("SELECT name FROM sqlite_master WHERE type='table' and name=?", ('statisticalAnalysis',)) # This checks if the table this script is implementing already exists within our database
+    if(connCur.fetchone()):
+        connCur.execute("DROP TABLE statisticalAnalysis") # Deletes table each time this app is run
+    
+    # connection = st.connection("cell_database", type="sql")
 
-    population_df = connection.query("SELECT DISTINCT sample FROM immunePops;", ttl=3600) # Our time to live parameter will be an hour so we don't trigger the rerun rule anytime we interact with the page
-    population_list = population_df["sample"].tolist()
-    current_population = st.sidebar.selectbox("Population Selection", options=population_list)
+    connCur.execute("""
+        CREATE TABLE statisticalAnalysis (
+            sample VARCHAR,
+            sample_type VARCHAR,
+            sample_count INTEGER,
+            sample_percentage REAL,
+            treatment VARCHAR,
+            condition VARCHAR,
+            FOREIGN KEY (sample) REFERENCES immunePops(sample)
+        )
+        """)
 
-    condition_df = connection.query("SELECT DISTINCT sample FROM conditionDeets;", ttl=3600)
-    condition_list = condition_df["sample"].tolist()
-    current_condition = st.sidebar.selectbox("Condition Selection", options=condition_list)
+    # df = pd.read_sql_query("SELECT sample, sample_type, sample_count, sample_percentage, treatment, condition FROM initialAnalysis", connection)
+    # print(df)
 
-    data_table = pd.read_sql_query("""
-                    WITH allResponses AS(SELECT sample, sample_type, sample_count, sample_percentage, treatment, condition FROM statisticalAnalysis NATURAL JOIN conditionDeets NATURAL JOIN sampleMetadata WHERE treatment='miraclib' AND condition='melanoma' AND sample_type='PBMC'),
-                    posiResponse AS(SELECT sample, sample_type, sample_count, sample_percentage FROM allResponses WHERE response='yes'),
-                    negResponses AS(SELECT sample, sample_type, sample_count, sample_percentage FROM allResponses WHERE response='no')
-                    SELECT * FROM allResponses;
+    connCur.execute("""
+                    WITH allResponses AS(SELECT sample, sample_type, sample_count, sample_percentage, treatment, condition FROM initialAnalysis
+                    NATURAL JOIN conditionDeets
+                    NATURAL JOIN sampleMetadata
+                    WHERE treatment='miraclib' AND condition='melanoma' AND sample_type='PBMC')
+                    INSERT INTO statisticalAnalysis (sample, sample_type, sample_count, sample_percentage, treatment, condition)
+                    SELECT sample, sample_type, sample_count, sample_percentage, treatment, condition FROM allResponses;
                     """, connection) # This checks if the table this script is implementing already exists within our database
-
-    data_overview = connection.query(
-        data_table,
-        params={"population_param": current_population, "condition_param": current_condition},
-        ttl=300
-    )
-
-    if data_overview.empty:
-        st.warning("This filter combination does not exist!")
-    else:
-        st.dataframe(data_overview, use_container_width=True, hide_index=True)
 
     connection.commit()
     connection.close()
 
 def main():
-    MakeAnalysis()
+    MakeInitAnalysis()
+    MakeStatAnalysis()
+    connection = sqlite3.connect("cell-database.db")
+    df = pd.read_sql_query("""SELECT *
+                           FROM initialAnalysis NATURAL JOIN conditionDeets NATURAL JOIN sampleMetadata
+                           WHERE treatment='miraclib' AND condition='melanoma' AND sample_type='PBMC';"""
+                           , connection)
+    print(df)
+    connection.close()
     MakeDashboard()
-    MakeDataOverview()
+    
+    
+    
 
 if __name__ == "__main__":
     main()
