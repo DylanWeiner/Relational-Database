@@ -12,47 +12,16 @@ def MakeDashboard():
         layout="wide"
     ) # Loosely formats the database application
     connection = st.connection("cell_database", type="sql") # Connects to database by calling our secrets.toml file
-    st.sidebar.header("Database Dashboard Filters") # Creates a Header for the Filter of the Database
 
     st.title("Cell Database")
 
-    # population_df = connection.query("SELECT DISTINCT sample FROM immunePops;", ttl=3600) # Our time to live parameter will be an hour so we don't trigger the rerun rule anytime we interact with the page
-    # population_list = population_df["sample"].tolist()
-    # current_population = st.sidebar.selectbox("Population Selection", options=population_list)
-
-    # condition_df = connection.query("SELECT DISTINCT sample FROM conditionDeets;", ttl=3600)
-    # condition_list = condition_df["sample"].tolist()
-    # current_condition = st.sidebar.selectbox("Condition Selection", options=condition_list)
-
     df_data_overview = connection.query(
         "SELECT * FROM initialAnalysis;",
-        # params={"population_param": current_population, "condition_param": current_condition},
         ttl=300
     )
 
     df_stat_analysis = connection.query(
         "SELECT * FROM statisticalAnalysis;",
-        # params={"population_param": current_population, "condition_param": current_condition},
-        ttl=300
-    )
-
-    # df_stat_analysis_full = connection.query(
-    #     "SELECT * FROM statisticalAnalysisFull;",
-    #     params={"population_param": current_population, "condition_param": current_condition},
-    #     ttl=300
-    # )
-    sql = """
-        SELECT subject, time_from_treatment, sample_percentage, response
-        FROM statisticalAnalysis
-        WHERE treatment = :treatment_param
-        AND condition = :condition_param
-        AND sample_type = :sample_type_param
-        ORDER BY subject, time_from_treatment;
-    """
-
-    df_full_data = connection.query(
-        "SELECT * FROM immunePops NATURAL JOIN conditionDeets NATURAL JOIN sampleMetadata",
-        # params={"population_param": current_population, "condition_param": current_condition},
         ttl=300
     )
 
@@ -61,14 +30,12 @@ def MakeDashboard():
     else:
         st.header("Initial Analysis")
         st.dataframe(df_data_overview, use_container_width=True, hide_index=True,)
-        st.dataframe(df_full_data, use_container_width=True, hide_index=True)
     
     if df_stat_analysis.empty:
         st.warning("Statistical Analysis's filter combination does not exist!")
     else:
         st.header("Statistical Analysis")
         st.dataframe(df_stat_analysis, use_container_width=True, hide_index=True,)
-        # st.dataframe(df_stat_analysis_full, use_container_width=True, hide_index=True,)
 
 
 def MakeInitAnalysis(connCur):
@@ -129,14 +96,6 @@ def MakeStatAnalysis(connCur):
         )
         """) # Create a table to hold the info for Part 3 of Bob's insatiable curiosity.
 
-    # connCur.execute("""
-    #                 WITH allResponses AS
-    #                 (SELECT sample, sample_type, colony_type, sample_count, sample_percentage, treatment, condition, response
-    #                     FROM conditionDeets NATURAL JOIN initialAnalysis NATURAL JOIN sampleMetadata)
-    #                 INSERT INTO statisticalAnalysis(sample, sample_type, colony_type, sample_count, sample_percentage, treatment, condition, response)
-    #                 SELECT sample, sample_type, colony_type, sample_count, sample_percentage, treatment, condition, response
-    #                     FROM allResponses;
-    #                 """) # Inserts values into the table where treatment was miraclib, the patient had melanoma
     connCur.execute("""
                     WITH allResponses AS
                     (SELECT sample, sample_type, colony_type, sample_count, sample_percentage, treatment, time_from_treatment_start, subject, condition, response
@@ -147,43 +106,6 @@ def MakeStatAnalysis(connCur):
                     """) # Inserts values into the table for all Responses for sorting
 
 
-# def MakeStatComparison(connCur):
-#     connCur.execute("SELECT name FROM sqlite_master WHERE type='table' and name=?", ('statisticalAnalysisFull',)) # This checks if the table this script is implementing already exists within our database
-#     if(connCur.fetchone()):
-#         connCur.execute("DROP TABLE statisticalAnalysisFull") # Deletes table each time this app is run
-
-#     connCur.execute("""
-#             CREATE TABLE statisticalAnalysisFull (
-#                 sample_percentage REAL,
-#                 treatment VARCHAR,
-#                 condition VARCHAR,
-#                 response VARCHAR,
-#                 time_from_treatment_start INTEGER,
-#                 subject VARCHAR,
-#                 PRIMARY KEY (subject, time_from_treatment_start)
-#                 CONSTRAINT sample_ref
-#                     FOREIGN KEY (subject)
-#                     REFERENCES sampleMetadata(subject),
-#                 CONSTRAINT condition_ref
-#                     FOREIGN KEY (time_from_treatment_start)
-#                     REFERENCES conditionDeets(time_from_treatment_start)
-#             )
-#             """)
-    
-#     connCur.execute("""
-#                     WITH statPulls AS
-#                     (SELECT treatment, subject, time_from_treatment_start, sample_percentage, response
-#                     FROM statisticalAnalysis
-#                     WHERE treatment = :treatment_param
-#                     AND condition = :condition_param
-#                     AND sample_type = :sample_type_param
-#                     AND response = :response
-#                     ORDER BY subject, time_from_treatment_start)
-#                     INSERT INTO statisticalAnalysisFull(treatment, subject, time_from_treatment_start, sample_percentage, response)
-#                     SELECT treatment, subject, time_from_treatment_start, sample_percentage, response FROM statPulls;
-#                     """)
-
-
 def renderComparisonSection():
     connection = st.connection("cell_database", type="sql")
     statAnalysis = connection.query("SELECT * FROM statisticalAnalysis", ttl=300)
@@ -192,6 +114,7 @@ def renderComparisonSection():
     treatment_options = statAnalysis["treatment"].unique().tolist()
     sample_options = statAnalysis["sample_type"].unique().tolist()
 
+    st.header("Frenquency per Response Chart")
     selected_condition = st.selectbox(
         "Condition:", options=condition_options,
         index=condition_options.index("melanoma")
@@ -277,21 +200,26 @@ def renderBaselineSummary():
     sample_options = statAnalysis["sample_type"].unique().tolist()
     time_options = sorted(statAnalysis["time_from_treatment_start"].unique().tolist())
 
+    st.header("Baseline Analyses")
     selected_condition = st.selectbox(
         "Condition:", options=condition_options,
-        index=condition_options.index("melanoma")
+        index=condition_options.index("melanoma"),
+        key="baseline_condition"
     )
     selected_treatment = st.selectbox(
         "Treatment:", options=treatment_options,
-        index=treatment_options.index("miraclib")
+        index=treatment_options.index("miraclib"),
+        key="baseline_treatment"
     )
     selected_sample = st.selectbox(
         "Sample type:", options=sample_options,
-        index=sample_options.index("PBMC")
+        index=sample_options.index("PBMC"),
+        key="baseline_sample"
     )
     selected_time = st.selectbox(
         "Time from treatment start:", options=time_options,
-        index=time_options.index(0)
+        index=time_options.index(0),
+        key="baseline_time"
     )
 
     base_cte = """
@@ -339,6 +267,51 @@ def renderBaselineSummary():
         st.plotly_chart(fig3, use_container_width=True)
 
 
+def renderDescriptiveStats():
+    connection = st.connection("cell_database", type="sql")
+    df = connection.query("SELECT * FROM statisticalAnalysis NATURAL JOIN sampleMetadata", ttl=300)
+
+    gender_options = ["All"] + sorted(df["sex"].unique().tolist())
+    age_options = ["All"] + sorted(df["age"].unique().tolist())
+    colony_options = ["All"] + sorted(df["colony_type"].unique().tolist())
+    condition_options = ["All"] + sorted(df["condition"].unique().tolist())
+    treatment_options = ["All"] + sorted(df["treatment"].unique().tolist())
+
+    st.header("Descriptive Statistics")
+    selected_gender = st.selectbox("Gender:", gender_options, key="stats_gender")
+    selected_age = st.selectbox("Age:", age_options, key="stats_age")
+    selected_colony = st.selectbox("Colony type:", colony_options, key="stats_colony")
+    selected_condition = st.selectbox("Condition:", condition_options, key="stats_condition")
+    selected_treatment = st.selectbox("Treatment:", treatment_options, key="stats_treatment")
+
+    filtered = df.copy()
+    if selected_gender != "All":
+        filtered = filtered[filtered["sex"] == selected_gender]
+    if selected_age != "All":
+        filtered = filtered[filtered["age"] == selected_age]
+    if selected_colony != "All":
+        filtered = filtered[filtered["colony_type"] == selected_colony]
+    if selected_condition != "All":
+        filtered = filtered[filtered["condition"] == selected_condition]
+    if selected_treatment != "All":
+        filtered = filtered[filtered["treatment"] == selected_treatment]
+
+    if filtered.empty:
+        st.warning("No data matches this combination.")
+        return
+
+    stats = filtered.groupby("colony_type")["sample_count"].agg(
+        mean="mean",
+        std_dev="std",
+        minimum="min",
+        maximum="max",
+        median="median",
+        n_samples="count"
+    ).reset_index()
+
+    st.dataframe(stats, use_container_width=True, hide_index=True)
+
+
 def main():
     connection = sqlite3.connect("cell-database.db")
     connCur = connection.cursor()
@@ -347,6 +320,7 @@ def main():
     MakeDashboard() # Construction of the streamlit dashboard
     renderComparisonSection() # Part 3's graph and table construction
     renderBaselineSummary()
+    renderDescriptiveStats()
     connection.commit()
     connection.close()
 
