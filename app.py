@@ -6,38 +6,6 @@ from scipy.stats import mannwhitneyu
 import plotly.express as px
 
 
-def MakeDashboard():
-    st.set_page_config(
-        page_title="Cell Relational Database",
-        layout="wide"
-    ) # Loosely formats the database application
-    connection = st.connection("cell_database", type="sql") # Connects to database by calling our secrets.toml file
-
-    st.title("Cell Database")
-
-    df_data_overview = connection.query(
-        "SELECT * FROM initialAnalysis;",
-        ttl=300
-    )
-
-    df_stat_analysis = connection.query(
-        "SELECT * FROM statisticalAnalysis;",
-        ttl=300
-    )
-
-    if df_data_overview.empty:
-        st.warning("This filter combination does not exist!")
-    else:
-        st.header("Initial Analysis")
-        st.dataframe(df_data_overview, use_container_width=True, hide_index=True,)
-    
-    if df_stat_analysis.empty:
-        st.warning("Statistical Analysis's filter combination does not exist!")
-    else:
-        st.header("Statistical Analysis")
-        st.dataframe(df_stat_analysis, use_container_width=True, hide_index=True,)
-
-
 def MakeInitAnalysis(connCur):
     connCur.execute("SELECT name FROM sqlite_master WHERE type='table' and name=?", ('initialAnalysis',)) # This checks if the table this script is implementing already exists within our database
     if(connCur.fetchone()):
@@ -104,6 +72,38 @@ def MakeStatAnalysis(connCur):
                     SELECT sample, sample_type, colony_type, sample_count, sample_percentage, treatment, time_from_treatment_start, subject, condition, response
                         FROM allResponses;
                     """) # Inserts values into the table for all Responses for sorting
+
+
+def MakeDashboard():
+    st.set_page_config(
+        page_title="Cell Relational Database",
+        layout="wide"
+    ) # Loosely formats the database application
+    connection = st.connection("cell_database", type="sql") # Connects to database by calling our secrets.toml file
+
+    st.title("Cell Database")
+
+    df_data_overview = connection.query(
+        "SELECT * FROM initialAnalysis;",
+        ttl=300
+    )
+
+    df_stat_analysis = connection.query(
+        "SELECT * FROM statisticalAnalysis;",
+        ttl=300
+    )
+
+    if df_data_overview.empty:
+        st.warning("This filter combination does not exist!")
+    else:
+        st.header("Initial Analysis")
+        st.dataframe(df_data_overview, use_container_width=True, hide_index=True,)
+    
+    if df_stat_analysis.empty:
+        st.warning("Statistical Analysis's filter combination does not exist!")
+    else:
+        st.header("Statistical Analysis")
+        st.dataframe(df_stat_analysis, use_container_width=True, hide_index=True,)
 
 
 def renderComparisonSection():
@@ -319,8 +319,8 @@ def main():
     MakeStatAnalysis(connCur) # Part 2's table construction
     MakeDashboard() # Construction of the streamlit dashboard
     renderComparisonSection() # Part 3's graph and table construction
-    renderBaselineSummary()
-    renderDescriptiveStats()
+    renderBaselineSummary() # Part 4's graph and table construction
+    renderDescriptiveStats() # Measures metrics including those used in the bonus question.
     connection.commit()
     connection.close()
 

@@ -4,16 +4,8 @@ The schema for my relational database was as follows:
 sampleMetadata['sample', 'project', 'subject', 'condition', 'age', 'sex']
 conditionDeets['sample', 'treatment', 'response', 'sample_type', 'time_from_treatment_start']
 immunePops['sample', 'b_cell', 'cd8_t_cell', 'cd4_t_cell', 'nk_cell', 'monocyte']
-I kept the patient information in one table so any personal identifying information would be centralized and otherwise out of the way. I kept details of patient treatment information in its own table to make it so monitoring outcomes of patient treatments centralized to the same table. The final table holds information on all of the cell colonies of each cell type. I kept the sample for all tables to simplify natural join functions and to use as a primary key for all of the tables. This should scale very well for larger projects as was mentioned since there is good and logical division amongst all of the tables to keep down runtime and any additional access will be under the scope of reading rather than writing which is far less demanding.
+I kept the patient information in one table so any personal identifying information would be centralized and otherwise out of the way. I kept details of patient treatment information in its own table to make it so monitoring outcomes of patient treatments centralized to the same table. The final table holds information on all of the cell colonies of each cell type. I kept the sample for all tables to simplify natural join functions and to use as a primary key for all of the tables. This should scale very well for larger projects as was mentioned since there is good and logical division amongst all of the tables to keep down runtime and any additional access will be under the scope of reading rather than writing which is far less demanding. It is important to note for the dashboard that the p-value being < 0.05 means that we can be 95% certain the results are statistically significant. I chose 0.05 over 0.01 because I care more about getting more true positives than eliminating false negatives since medical information can be dangerous if you don't catch as many positives as possible.
 
-
+My code structure was comprised of multiple methods that handled each respective component of the dashboard. First I compiled the table for the data on the cell colonies in MakeInitAnalysis. After, I prepared MakeStatAnalysis which held every patient's relevant information in order of sample value. Next, I made renderComparisonSection to generate a table for the statistical analysis of each cell colony and the relevant box plot. Then, I used MakeDashboard to display the dashboard element and the streamlit page itself. Next was the renderComparisonSection  renderBaselineSummary which was responsible for splitting up our data by project, response, or sex, in a way where it can be viewed by treatment, condition, sample type, and treament runtime. Last was renderDescriptiveStats, which took all of our valuable statistical markers and allows the user to sort them by varying metrics.
 
 URL: http://localhost:8501
-
-Any instructions needed to run your code and reproduce the outputs (We will run your code using GitHub Codespaces).
-
-An explanation of the schema used for the relational database, with rationale for the design and how this would scale if there were hundreds of projects, thousands of samples and various types of analytics you’d want to perform.
-
-A brief overview of your code structure and an explanation of why you designed it the way you did.
-
-A link to the dashboard.
