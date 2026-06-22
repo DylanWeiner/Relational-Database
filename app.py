@@ -305,12 +305,18 @@ def renderDescriptiveStats():
 def main():
     connection = sqlite3.connect("cell-database.db")
     connCur = connection.cursor()
+
     MakeInitAnalysis(connCur) # Part 1's table construction
+
     MakeStatAnalysis(connCur) # Part 2's table construction
     MakeDashboard() # Construction of the streamlit dashboard
+
     renderComparisonSection() # Part 3's graph and table construction
+
     renderBaselineSummary() # Part 4's graph and table construction
+
     renderDescriptiveStats() # Measures metrics including those used in the bonus question.
+    
     connection.commit()
     connection.close()
 
