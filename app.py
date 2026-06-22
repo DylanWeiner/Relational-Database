@@ -86,110 +86,99 @@ def MakeDashboard():
     df_data_overview = connection.query(
         "SELECT * FROM initialAnalysis;",
         ttl=300
-    ) # This generates the physical summary table we produced in our helper function for our initial table of each cell
-    # colony per sample.
-
-    # df_stat_analysis = connection.query(
-    #     "SELECT * FROM statisticalAnalysis;",
-    #     ttl=300
-    # ) # This does the same thing for our statistical 
+    ) # Creates the dataframe for our initial analysis
 
     if df_data_overview.empty:
         st.warning("This filter combination does not exist!")
     else:
         st.header("Initial Analysis")
-        st.dataframe(df_data_overview, use_container_width=True, hide_index=True,)
-    
-    # if df_stat_analysis.empty:
-    #     st.warning("Statistical Analysis's filter combination does not exist!")
-    # else:
-    #     st.header("Statistical Analysis")
-    #     st.dataframe(df_stat_analysis, use_container_width=True, hide_index=True,)
+        st.dataframe(df_data_overview, use_container_width=True, hide_index=True,) # This generates the physical
+        # summary table we produced in our helper function for our initial table of each cell colony per sample.
 
 
 def renderComparisonSection():
     connection = st.connection("cell_database", type="sql")
     statAnalysis = connection.query("SELECT * FROM statisticalAnalysis", ttl=300)
 
-    condition_options = statAnalysis["condition"].unique().tolist()
-    treatment_options = statAnalysis["treatment"].unique().tolist()
-    sample_options = statAnalysis["sample_type"].unique().tolist()
+    condition_options = statAnalysis["condition"].unique().tolist() # These commands grab each distinct value
+    treatment_options = statAnalysis["treatment"].unique().tolist() # in each of these lists and saves them to
+    sample_options = statAnalysis["sample_type"].unique().tolist() # a list datatype
 
-    st.header("Statistical Analysis")
+    st.header("Statistical Analysis") # Makes a header for our chart
     selected_condition = st.selectbox(
         "Condition:", options=condition_options,
         index=condition_options.index("melanoma")
-    )
+    ) # This allows us to select our options for each dropdown menu from the existing cells in the relevant columns.
     selected_treatment = st.selectbox(
         "Treatment:", options=treatment_options,
         index=treatment_options.index("miraclib")
-    )
-    selected_sample = st.selectbox(
+    ) # I set the menus to default to the query Bob was searching for since it simplifies the interactions necessary
+    selected_sample = st.selectbox( # to obtain the desired results
         "Sample type:", options=sample_options,
         index=sample_options.index("PBMC")
     )
 
-    # Filter on sample_type (PBMC) — colony_type is left untouched
-    # so every cell population stays in the result
-    query = """
+    dropdown_val_query = """
         SELECT subject, colony_type, sample_percentage, response
         FROM statisticalAnalysis
         WHERE condition = :condition_param
           AND treatment = :treatment_param
           AND sample_type = :sample_param
-    """
+    """ # The param values are just the sqlalchemy placeholders that keep the spot filled before we define our
+    # values properly
     df_allStats = connection.query(
-        query,
+        dropdown_val_query,
         params={
             "condition_param": selected_condition,
             "treatment_param": selected_treatment,
             "sample_param": selected_sample
         },
         ttl=300
-    )
+    ) # This sets our placeholders to the relevant columns from our table
 
     if df_allStats.empty:
         st.warning("No data matches this combination.")
-        return
+        return # This just throws a warning for an empty dataframe rather than printing the empty dataframe
 
     # Boxplot, one panel per cell population
     fig = px.box(
         df_allStats, x="response", y="sample_percentage", color="response",
-        facet_col="colony_type",
+        facet_col="colony_type", # Groups our boxplots by colony_type
         title="Relative Frequency by Response Status, per Cell Population"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    ) # We have one panel per colony type; each has its own yes and no box, and is colored by response
+    st.plotly_chart(fig, use_container_width=True) # Places the boxplot on the page
 
     # Significance test, per cell population
     results = []
-    for population in df_allStats["colony_type"].unique():
-        subset = df_allStats[df_allStats["colony_type"] == population]
-        responders = subset[subset["response"] == "yes"]["sample_percentage"]
-        non_responders = subset[subset["response"] == "no"]["sample_percentage"]
+    for population in df_allStats["colony_type"].unique(): # We loop through every unique colony type
+        subset = df_allStats[df_allStats["colony_type"] == population] # This saves only the rows where population is the relevant colony_type
+        responders = subset[subset["response"] == "yes"]["sample_percentage"] 
+        non_responders = subset[subset["response"] == "no"]["sample_percentage"] # Same thing with responses yes and no
 
         if len(responders) < 2 or len(non_responders) < 2:
-            continue
+            continue # We need at least two values for this statistical test so this is our catch for relevant edge cases
 
-        stat, p_value = mannwhitneyu(responders, non_responders, alternative="two-sided")
+        stat, p_value = mannwhitneyu(responders, non_responders, alternative="two-sided") # Calls Mann-Whitney U Test (Looks for statistical difference btwn 2 independent groups)
         results.append({
             "colony_type": population,
             "responder_median": responders.median(),
             "non_responder_median": non_responders.median(),
             "p_value": p_value
-        })
+        }) # Creates a dictionary for the relevant results for our colony types
 
-    results_df = pd.DataFrame(results)
-    if not results_df.empty:
+    results_df = pd.DataFrame(results) # We then set our results to a dataframe
+    if not results_df.empty: # This is where we create the column for significance and mark whether or not it is present
         results_df["significant"] = results_df["p_value"] < 0.05
         st.dataframe(results_df, use_container_width=True, hide_index=True)
-    significant_populations = results_df[results_df["significant"]]["colony_type"].tolist()
+        significant_populations = results_df[results_df["significant"]]["colony_type"].tolist()
 
     if significant_populations:
         st.success(f"Significant difference found in: {', '.join(significant_populations)} "
                 f"(p < 0.05), suggesting these populations may help predict response to {selected_treatment}.")
     else:
-        st.info("No cell populations showed a statistically significant difference "
-                "between responders and non-responders at p < 0.05.")
+        st.info("""No cell populations showed a statistically significant difference 
+                between responders and non-responders at p < 0.05.""")
+    # This is here to provide a readable answer to the user
 
 
 def renderBaselineSummary():
@@ -272,10 +261,10 @@ def renderDescriptiveStats():
     connection = st.connection("cell_database", type="sql")
     df = connection.query("SELECT * FROM statisticalAnalysis NATURAL JOIN sampleMetadata", ttl=300)
 
-    gender_options = ["All"] + sorted(df["sex"].unique().tolist())
-    age_options = ["All"] + sorted(df["age"].unique().tolist())
-    colony_options = ["All"] + sorted(df["colony_type"].unique().tolist())
-    condition_options = ["All"] + sorted(df["condition"].unique().tolist())
+    gender_options = ["All"] + sorted(df["sex"].unique().tolist()) # These are here to create an option where
+    age_options = ["All"] + sorted(df["age"].unique().tolist()) # you can sort by multiple aspects but can also
+    colony_options = ["All"] + sorted(df["colony_type"].unique().tolist()) # filter only as necessary and leave
+    condition_options = ["All"] + sorted(df["condition"].unique().tolist()) # other fields unfiltered
     treatment_options = ["All"] + sorted(df["treatment"].unique().tolist())
 
     st.header("Descriptive Statistics")
@@ -286,8 +275,8 @@ def renderDescriptiveStats():
     selected_treatment = st.selectbox("Treatment:", treatment_options, key="stats_treatment")
 
     filtered = df.copy()
-    if selected_gender != "All":
-        filtered = filtered[filtered["sex"] == selected_gender]
+    if selected_gender != "All": # We start from a full copy and narrow down one filter at a time; this only applies a
+        filtered = filtered[filtered["sex"] == selected_gender] # filter when the user picked something other than "All."
     if selected_age != "All":
         filtered = filtered[filtered["age"] == selected_age]
     if selected_colony != "All":
