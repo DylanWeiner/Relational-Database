@@ -266,6 +266,7 @@ def renderDescriptiveStats():
     colony_options = ["All"] + sorted(df["colony_type"].unique().tolist()) # filter only as necessary and leave
     condition_options = ["All"] + sorted(df["condition"].unique().tolist()) # other fields unfiltered
     treatment_options = ["All"] + sorted(df["treatment"].unique().tolist())
+    time_options = ["All"] + sorted(df["time_from_treatment_start"].unique().tolist())
 
     st.header("Descriptive Statistics")
     selected_gender = st.selectbox("Gender:", gender_options, key="stats_gender")
@@ -273,6 +274,7 @@ def renderDescriptiveStats():
     selected_colony = st.selectbox("Colony type:", colony_options, key="stats_colony")
     selected_condition = st.selectbox("Condition:", condition_options, key="stats_condition")
     selected_treatment = st.selectbox("Treatment:", treatment_options, key="stats_treatment")
+    selected_time = st.selectbox("Time from treatment start:", time_options, key="stats_time")
 
     filtered = df.copy()
     if selected_gender != "All": # We start from a full copy and narrow down one filter at a time; this only applies a
@@ -285,6 +287,8 @@ def renderDescriptiveStats():
         filtered = filtered[filtered["condition"] == selected_condition]
     if selected_treatment != "All":
         filtered = filtered[filtered["treatment"] == selected_treatment]
+    if selected_time != "All":
+        filtered = filtered[filtered["time_from_treatment_start"] == selected_time]
 
     if filtered.empty:
         st.warning("No data matches this combination.")
@@ -316,7 +320,7 @@ def main():
     renderBaselineSummary() # Part 4's graph and table construction
 
     renderDescriptiveStats() # Measures metrics including those used in the bonus question.
-    
+
     connection.commit()
     connection.close()
 
