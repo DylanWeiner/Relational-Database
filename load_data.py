@@ -50,9 +50,6 @@ def create_database(db_name): # Helper function to create database.
                 connCur.execute("INSERT INTO immunePops (sample, b_cell, cd8_t_cell, cd4_t_cell, nk_cell, monocyte) VALUES (:sample, :b_cell, :cd8_t_cell, :cd4_t_cell, :nk_cell, :monocyte) ON CONFLICT(sample) DO NOTHING;", row,)
     connection.commit() # Commits file
     connection.close() # Safely closes database
-
-
-
         
 
 def main():
