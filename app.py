@@ -86,12 +86,13 @@ def MakeDashboard():
     df_data_overview = connection.query(
         "SELECT * FROM initialAnalysis;",
         ttl=300
-    )
+    ) # This generates the physical summary table we produced in our helper function for our initial table of each cell
+    # colony per sample.
 
-    df_stat_analysis = connection.query(
-        "SELECT * FROM statisticalAnalysis;",
-        ttl=300
-    )
+    # df_stat_analysis = connection.query(
+    #     "SELECT * FROM statisticalAnalysis;",
+    #     ttl=300
+    # ) # This does the same thing for our statistical 
 
     if df_data_overview.empty:
         st.warning("This filter combination does not exist!")
@@ -99,11 +100,11 @@ def MakeDashboard():
         st.header("Initial Analysis")
         st.dataframe(df_data_overview, use_container_width=True, hide_index=True,)
     
-    if df_stat_analysis.empty:
-        st.warning("Statistical Analysis's filter combination does not exist!")
-    else:
-        st.header("Statistical Analysis")
-        st.dataframe(df_stat_analysis, use_container_width=True, hide_index=True,)
+    # if df_stat_analysis.empty:
+    #     st.warning("Statistical Analysis's filter combination does not exist!")
+    # else:
+    #     st.header("Statistical Analysis")
+    #     st.dataframe(df_stat_analysis, use_container_width=True, hide_index=True,)
 
 
 def renderComparisonSection():
@@ -114,7 +115,7 @@ def renderComparisonSection():
     treatment_options = statAnalysis["treatment"].unique().tolist()
     sample_options = statAnalysis["sample_type"].unique().tolist()
 
-    st.header("Frenquency per Response Chart")
+    st.header("Statistical Analysis")
     selected_condition = st.selectbox(
         "Condition:", options=condition_options,
         index=condition_options.index("melanoma")
@@ -200,7 +201,7 @@ def renderBaselineSummary():
     sample_options = statAnalysis["sample_type"].unique().tolist()
     time_options = sorted(statAnalysis["time_from_treatment_start"].unique().tolist())
 
-    st.header("Baseline Analyses")
+    st.header("Subset Analyses")
     selected_condition = st.selectbox(
         "Condition:", options=condition_options,
         index=condition_options.index("melanoma"),
